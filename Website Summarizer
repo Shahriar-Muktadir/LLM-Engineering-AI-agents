@@ -1,0 +1,114 @@
+# From here I will make a scrapper for another website of Any website
+# A class to represent a Webpage
+# If you're not familiar with Classes, check out the "Intermediate Python" notebook
+
+# imports
+
+import os
+import requests
+from dotenv import load_dotenv
+from bs4 import BeautifulSoup
+from IPython.display import Markdown, display
+from openai import OpenAI
+
+# If you get an error running this cell, then please head over to the troubleshooting notebook!
+# Some websites need you to use proper headers when fetching them:
+
+
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Referer": "https://google.com/",
+    "Connection": "keep-alive",
+}
+
+# এই Website অবজেক্ট তৈরি করবে নির্দিষ্ট url থেকে 
+# BeautifulSoup লাইব্রেরি ব্যবহার করে।
+
+# ইউজার যে url দিবে সেটাকে অবজেক্টের মধ্যে সংরক্ষণ করা
+
+# ওয়েবসাইট থেকে HTML আনার জন্য requests ব্যবহার করা
+# headers ব্যবহার করা হয়েছে যাতে ওয়েবসাইট ভাবে এটি আসল ব্রাউজার
+
+# BeautifulSoup দিয়ে HTML কে parse করা
+
+# পেজের <title> ট্যাগ থাকলে সেটি নেওয়া, না থাকলে ডিফল্ট টেক্সট রাখা
+
+# ওয়েবসাইটের অপ্রয়োজনীয় ট্যাগ (script, style, img, input) মুছে ফেলা
+
+# বাকি থাকা body থেকে শুধু টেক্সট বের করা
+# প্রতিটি অংশ নতুন লাইনে যাবে এবং ফাঁকা জায়গা কেটে দেওয়া হবে
+
+
+
+class Website:
+
+    def __init__(self, url):
+        """
+        Create this Website object from the given url using the BeautifulSoup library
+        """
+        self.url = url
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        self.title = soup.title.string if soup.title else "No title found"
+        for irrelevant in soup.body(["script", "style", "img", "input"]):
+            irrelevant.decompose()
+        self.text = soup.body.get_text(separator="\n", strip=True)
+
+        # Let's try one out. Change the website and add print statements to follow along.
+
+# ed = Website("https://www.pornhub.com/")
+# print(ed.title)
+# print(ed.text)
+
+# session = requests.Session()
+# response = session.get("https://www.facebook.com/", headers=headers)
+# soup = BeautifulSoup(response.content, "html.parser")
+# print(soup.title.string)
+
+# system_prompt = "You are an assistant that analyzes the contents of a website \
+# and provides a short summary, ignoring text that might be navigation related. \
+# Respond in markdown."
+
+# def user_prompt_for(website):
+#     user_prompt = f"You are looking at a website titled {website.title}"
+#     user_prompt += "\nThe contents of this website is as follows; \
+# please provide a short summary of this website in markdown. \
+# If it includes news or announcements, then summarize these too.\n\n"
+#     user_prompt += website.text
+#     return user_prompt
+
+    
+# print(user_prompt_for(ed))
+def messages_for(website):
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt_for(website)}
+    ]
+messages_for(ed)
+# # And now: call the Gemini API. You will get very familiar with this!
+import os
+import google.generativeai as genai
+
+# Directly pass your API key
+genai.configure(api_key="AIzaSyCk03Hu69ksdYVfZTuhRbM-VI8mVp2aDsA")
+
+def summarize(url):
+    website = Website(url)
+    messages = messages_for(website)
+
+    # Convert messages to plain text
+    prompt = "\n".join([m["content"] for m in messages])
+
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    response = model.generate_content(prompt)
+
+    return response.text
+
+    print(summarize("https://www.example.com/"))
+    
+    def display_summary(url):
+        summary = summarize(url)
+        display(Markdown(summary))
+display_summary("https://www.example.com/")
