@@ -58,7 +58,7 @@ class Website:
 
         # Let's try one out. Change the website and add print statements to follow along.
 
-# ed = Website("https://www.pornhub.com/")
+# ed = Website("https://www.example.com/")
 # print(ed.title)
 # print(ed.text)
 
