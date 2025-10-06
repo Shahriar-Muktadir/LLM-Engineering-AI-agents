@@ -1,0 +1,71 @@
+import sys
+!{sys.executable} -m pip install ollama
+
+import requests
+from bs4 import BeautifulSoup
+from IPython.display import Markdown, display
+import ollama
+
+# headers to mimic a real browser
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Referer": "https://google.com/",
+    "Connection": "keep-alive",
+}
+
+# --------------------------------------
+# Website Class (scrapes HTML -> text)
+# --------------------------------------
+class Website:
+    def __init__(self, url):
+        self.url = url
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.content, "html.parser")
+        
+        # page title
+        self.title = soup.title.string if soup.title else "No title found"
+
+        # remove irrelevant tags
+        for irrelevant in soup.body(["script", "style", "img", "input"]):
+            irrelevant.decompose()
+
+        # extract clean text
+        self.text = soup.body.get_text(separator="\n", strip=True)
+
+
+# --------------------------------------
+# Summarizer using Ollama
+# --------------------------------------
+def summarize(url, model="llama3.2"):
+    website = Website(url)
+    
+    # create prompt
+    prompt = f"""
+You are a helpful AI that summarizes webpages.
+
+Title: {website.title}
+URL: {website.url}
+
+Content:
+{website.text[:4000]}
+
+Provide a clear and concise summary:
+"""
+    # call Ollama
+    response = ollama.chat(
+        model=model,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return response["message"]["content"]
+
+
+def display_summary(url, model="llama3.2"):
+    summary = summarize(url, model=model)
+    display(Markdown("### Summary\n" + summary))
+
+
+# Example usage
+display_summary("https://www.example.com/")
