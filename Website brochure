@@ -1,0 +1,92 @@
+# from previous website link code continues
+def get_all_details(url):
+    result = "Landing page:\n"
+    result += Website(url).get_contents()
+    links = get_links(url)
+    print("Found links:", links)
+    for link in links["links"]:
+        result += f"\n\n{link['type']}\n"
+        result += Website(link["url"]).get_contents()
+    return result
+print(get_all_details("https://huggingface.co"))
+system_prompt = "You are an assistant that analyzes the contents of several relevant pages from a company website \
+and creates a short brochure about the company for prospective customers, investors and recruits. Respond in markdown.\
+Include details of company culture, customers and careers/jobs if you have the information."
+
+# Or uncomment the lines below for a more humorous brochure - this demonstrates how easy it is to incorporate 'tone':
+
+# system_prompt = "You are an assistant that analyzes the contents of several relevant pages from a company website \
+# and creates a short humorous, entertaining, jokey brochure about the company for prospective customers, investors and recruits. Respond in markdown.\
+# Include details of company culture, customers and careers/jobs if you have the information."
+def get_brochure_user_prompt(company_name, url):
+    user_prompt = f"You are looking at a company called: {company_name}\n"
+    user_prompt += f"Here are the contents of its landing page and other relevant pages; use this information to build a short brochure of the company in markdown.\n"
+    user_prompt += get_all_details(url)
+    user_prompt = user_prompt[:5_000] # Truncate if more than 5,000 characters
+    return user_prompt
+get_brochure_user_prompt("HuggingFace", "https://huggingface.co")
+# def create_brochure(company_name, url):
+#     response = openai.chat.completions.create(
+#         model=MODEL,
+#         messages=[
+#             {"role": "system", "content": system_prompt},
+#             {"role": "user", "content": get_brochure_user_prompt(company_name, url)}
+#           ],
+#     )
+#     result = response.choices[0].message.content
+#     display(Markdown(result))
+def create_brochure(company_name, url):
+    # Gemini-এর জন্য user prompt তৈরি করা
+    user_prompt = get_brochure_user_prompt(company_name, url)
+
+    # system prompt এবং user prompt একত্রিত
+    full_prompt = f"""
+    {system_prompt}
+
+    User input:
+    {user_prompt}
+    """
+
+    # Gemini মডেল ব্যবহার করে কন্টেন্ট তৈরি
+    response = model.generate_content(
+        full_prompt,
+        generation_config={"response_mime_type": "text/plain"}  # Markdown আউটপুট চাই
+    )
+
+    # রেসপন্স থেকে Markdown কন্টেন্ট বের করা
+    brochure_content = response.text
+
+    # প্রদর্শন করা
+    display(Markdown(brochure_content))
+create_brochure("HuggingFace", "https://huggingface.co")
+#####################
+from IPython.display import display, Markdown, update_display
+import time
+
+def stream_brochure_gemini(company_name, url, chunk_size=1000, delay=0.05):
+    user_prompt = get_brochure_user_prompt(company_name, url)
+
+    full_prompt = f"""{system_prompt}
+
+User input:
+{user_prompt}"""
+
+    # Gemini থেকে content generate
+    response = model.generate_content(
+        full_prompt,
+        generation_config={"response_mime_type": "text/plain"}  # Markdown safe
+    )
+
+    full_text = response.text
+
+    display_handle = display(Markdown(""), display_id=True)
+    displayed_text = ""
+
+    # Fixed-size chunking streaming illusion
+    for i in range(0, len(full_text), chunk_size):
+        chunk = full_text[i:i+chunk_size]
+        displayed_text += chunk
+        displayed_text_clean = displayed_text.replace("```", "")
+        update_display(Markdown(displayed_text_clean), display_id=display_handle.display_id)
+        time.sleep(delay)
+stream_brochure_gemini("HuggingFace", "https://huggingface.co")
