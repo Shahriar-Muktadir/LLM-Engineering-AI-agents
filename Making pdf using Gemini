@@ -1,0 +1,71 @@
+# --- Imports ---
+import google.generativeai as genai
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+import re
+
+# --- Configure Gemini API key manually ---
+genai.configure(api_key="AIzaSyCk03Hu69ksdYVfZTuhRbM-VI8mVp2aDsA")  # replace manually
+
+model = genai.GenerativeModel("gemini-2.5-flash")
+
+# --- Define prompts for gemini LLM calls ---
+prompts = [
+    "Summarize the key differences between supervised and unsupervised learning.",
+    "Explain how reinforcement learning complements these paradigms.",
+    "Describe a real-world system that integrates all three learning types.",
+]
+
+responses = []
+for i, prompt in enumerate(prompts, 1):
+    print(f"Calling Gemini 2.5 for section {i}...")
+    response = model.generate_content(prompt)
+    responses.append(response.text)
+
+# --- Clean LLM output to make it ReportLab-safe ---
+def clean_text(text):
+    """Remove markdown/HTML not supported by ReportLab."""
+    text = re.sub(r'<br\s*/?>', '\n', text)  # replace <br> with line breaks
+    text = re.sub(r'\|.*\|', '', text)       # remove markdown tables
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # bold markdown
+    text = re.sub(r'\*(.*?)\*', r'\1', text)      # italic markdown
+    text = re.sub(r'<.*?>', '', text)             # remove any remaining tags
+    text = text.replace("&nbsp;", " ")
+    return text.strip()
+
+responses = [clean_text(r) for r in responses]
+
+# --- Build the PDF document ---
+styles = getSampleStyleSheet()
+doc = SimpleDocTemplate("Agentic_AI_Workflow.pdf", pagesize=A4)
+story = []
+
+story.append(Paragraph("Agentic AI Design Pattern – Multi LLM Calls", styles["Title"]))
+story.append(Spacer(1, 20))
+
+for i, text in enumerate(responses, 1):
+    story.append(Paragraph(f"Section {i}", styles["Heading2"]))
+    story.append(Paragraph(clean_text(text), styles["BodyText"]))
+    story.append(Spacer(1, 12))
+
+summary_text = """
+This document demonstrates an Agentic AI design pattern where multiple LLM
+(Gemini 2.5) calls are orchestrated to construct a cohesive output — an example
+of how AI systems can autonomously gather, synthesize, and document insights.
+"""
+story.append(Paragraph(clean_text(summary_text), styles["Italic"]))
+
+doc.build(story)
+print("✅ PDF 'Agentic_AI_Workflow.pdf' created successfully and cleaned safely!")
+from IPython.display import FileLink, display, IFrame
+
+pdf_path = "Agentic_AI_Workflow.pdf"
+
+# Display a clickable download link
+display(FileLink(pdf_path))
+
+# Optionally embed the PDF directly in the notebook viewer
+display(IFrame(pdf_path, width=800, height=500))
+print("✅ PDF 'Agentic_AI_Workflow.pdf' created successfully and cleaned safely!")
+
