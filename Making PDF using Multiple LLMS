@@ -1,0 +1,109 @@
+# --- Install dependencies if needed ---
+# !pip install google-generativeai reportlab requests
+
+import google.generativeai as genai
+import requests
+import re
+from concurrent.futures import ThreadPoolExecutor
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+import json
+
+# --- 1️⃣ Configure APIs ---
+genai.configure(api_key="AIzaSyCk03Hu69ksdYVfZTuhRbM-VI8mVp2aDsA")   # Gemini 2.5 key
+GEMINI_MODEL = "gemini-2.5-flash"
+
+# Local Ollama endpoints (assumes Ollama is running locally)
+OLLAMA_ENDPOINT = "http://localhost:11434/api/generate"
+OLLAMA_MODELS = ["llama3", "mistral"]
+
+# --- 2️⃣ Helper functions ---
+
+def clean_text(text: str) -> str:
+    """Remove markdown/HTML that ReportLab can't render."""
+    text = re.sub(r"<br\s*/?>", "\n", text)
+    text = re.sub(r"\|.*\|", "", text)
+    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+    text = re.sub(r"\*(.*?)\*", r"\1", text)
+    text = re.sub(r"<.*?>", "", text)
+    text = text.replace("&nbsp;", " ")
+    return text.strip()
+
+def call_gemini(prompt: str) -> str:
+    model = genai.GenerativeModel(GEMINI_MODEL)
+    resp = model.generate_content(prompt)
+    return f"Gemini 2.5:\n{resp.text.strip()}"
+
+def call_ollama(model_name: str, prompt: str) -> str:
+    payload = {"model": model_name, "prompt": prompt, "stream": False}
+    r = requests.post(OLLAMA_ENDPOINT, json=payload)
+    
+    if r.status_code != 200:
+        return f"[{model_name}] Error: {r.text}"
+
+    # --- Fixed JSON parsing for Ollama JSON Lines ---
+    text_lines = []
+    for line in r.text.strip().splitlines():
+        try:
+            chunk = json.loads(line)
+            if "response" in chunk:
+                text_lines.append(chunk["response"])
+        except json.JSONDecodeError:
+            continue
+
+    text = "".join(text_lines).strip()
+    if not text:
+        text = r.text.strip()  # fallback
+    return f"{model_name.title()}:\n{text}"
+
+# --- 3️⃣ Multi-LLM orchestration ---
+prompts = [
+    "Summarize the key differences between supervised and unsupervised learning.",
+    "Explain how reinforcement learning complements these paradigms.",
+    "Describe a real-world system that integrates all three learning types."
+]
+
+all_responses = []
+
+for p_idx, prompt in enumerate(prompts, 1):
+    print(f"\n=== Prompt {p_idx}: {prompt[:60]}...")
+    with ThreadPoolExecutor() as ex:
+        futures = []
+        futures.append(ex.submit(call_gemini, prompt))
+        for m in OLLAMA_MODELS:
+            futures.append(ex.submit(call_ollama, m, prompt))
+        results = [f.result() for f in futures]
+    all_responses.append(results)
+    print("Received responses from:", ", ".join(["Gemini 2.5"] + OLLAMA_MODELS))
+
+# --- 4️⃣ Build PDF report ---
+styles = getSampleStyleSheet()
+doc = SimpleDocTemplate("Multi_LLM_Agentic_Workflow.pdf", pagesize=A4)
+story = []
+
+story.append(Paragraph("Agentic AI Design Pattern – Multi-LLM Orchestration", styles["Title"]))
+story.append(Spacer(1, 20))
+
+for i, model_responses in enumerate(all_responses, 1):
+    story.append(Paragraph(f"Prompt {i}", styles["Heading2"]))
+    for resp_text in model_responses:
+        story.append(Paragraph(clean_text(resp_text), styles["BodyText"]))
+        story.append(Spacer(1, 10))
+
+summary = """
+This document aggregates outputs from multiple large language models —
+Gemini 2.5, Llama 3, and Mistral (Ollama) — to illustrate an agentic
+multi-model workflow where each model contributes complementary insights.
+"""
+story.append(Spacer(1, 20))
+story.append(Paragraph(clean_text(summary), styles["Italic"]))
+
+doc.build(story)
+print("✅ PDF 'Multi_LLM_Agentic_Workflow.pdf' created successfully!")
+
+# --- 5️⃣ Show inside Jupyter ---
+from IPython.display import FileLink, IFrame, display
+pdf_path = "Multi_LLM_Agentic_Workflow.pdf"
+display(FileLink(pdf_path))
+display(IFrame(pdf_path, width=800, height=500))
