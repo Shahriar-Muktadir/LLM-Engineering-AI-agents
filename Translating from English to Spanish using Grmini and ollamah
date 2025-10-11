@@ -1,0 +1,84 @@
+# === Tesla Brochure Generator using Gemini 2.5 + Multi-shot Prompting ===
+# Author: ChatGPT (Data Scientist Mode)
+
+# --- Imports ---
+import os
+import google.generativeai as genai
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from IPython.display import FileLink, display
+
+# --- Configure Gemini ---
+os.environ["GOOGLE_API_KEY"] = "AIzaSyCk03Hu69ksdYVfZTuhRbM-VI8mVp2aDsA"  # 🔁 Replace with your actual key or set in environment
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+model = genai.GenerativeModel("gemini-2.5-flash")
+
+# === Multi-shot examples (LLaMA-style prompting) ===
+few_shot_examples = """
+Example 1:
+Company: Apple
+Theme: Innovation and Design
+Brochure:
+Apple redefines innovation by merging technology with creativity. From the iPhone to the MacBook, every product inspires people to think differently.
+
+Example 2:
+Company: SpaceX
+Theme: Exploration and Progress
+Brochure:
+SpaceX leads humanity’s mission beyond Earth. Through reusable rockets and Mars exploration, it turns interplanetary travel into a reality.
+"""
+
+# --- Step 1: Generate Tesla brochure in English ---
+print("✨ Generating English brochure using Gemini...")
+
+prompt_en = f"""
+{few_shot_examples}
+
+Now create a professional brochure for **Tesla** focusing on electric mobility, sustainable innovation, and clean energy.
+Use a confident, visionary tone.
+Write only in English.
+"""
+
+response_en = model.generate_content([{"role": "user", "parts": [{"text": prompt_en}]}])
+brochure_text_en = response_en.text.strip()
+print("✅ English brochure created.\n")
+
+# --- Step 2: Translate to Spanish ---
+print("🌎 Translating to Spanish using Gemini...")
+
+prompt_es = f"""
+Translate the following Tesla brochure text to Spanish, keeping the same persuasive and elegant marketing tone:
+
+{brochure_text_en}
+"""
+
+response_es = model.generate_content([{"role": "user", "parts": [{"text": prompt_es}]}])
+brochure_text_es = response_es.text.strip()
+print("✅ Spanish translation complete.\n")
+
+# --- Step 3: Combine English + Spanish versions ---
+final_text = f"""
+<b>TESLA BROCHURE (ENGLISH)</b><br/><br/>
+{brochure_text_en}<br/><br/>
+---<br/><br/>
+<b>TESLA BROCHURE (ESPAÑOL)</b><br/><br/>
+{brochure_text_es}
+"""
+
+# --- Step 4: Generate downloadable PDF ---
+pdf_filename = "Tesla_Brochure_EN_ES.pdf"
+pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3'))
+styles = getSampleStyleSheet()
+style = styles["Normal"]
+
+doc = SimpleDocTemplate(pdf_filename, pagesize=A4)
+elements = [Paragraph(final_text, style), Spacer(1, 12)]
+doc.build(elements)
+
+print(f"📄 Bilingual brochure PDF generated successfully: {pdf_filename}\n")
+
+# --- Step 5: Create download link ---
+display(FileLink(pdf_filename, result_html_prefix="👉 Click here to download the brochure: "))
